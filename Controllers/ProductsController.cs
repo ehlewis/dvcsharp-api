@@ -68,7 +68,7 @@ namespace dvcsharp_core_api
             if (String.IsNullOrEmpty(keyword))
                 return Ok("Cannot search without a keyword");
             if (!IsValidInput(keyword))
-                return Ok(new List<Product>(0));
+                return Ok("Not valid input!!!!!!!!!!!!!");
 
             var query = $"SELECT * From Products WHERE name LIKE @p0 OR description LIKE @p1";
             var products = _context.Products
