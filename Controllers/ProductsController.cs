@@ -12,81 +12,93 @@ using dvcsharp_core_api.Data;
 
 namespace dvcsharp_core_api
 {
-   [Route("api/[controller]")]
-   public class ProductsController : Controller
-   {
-      private readonly GenericDataContext _context;
+    [Route("api/[controller]")]
+    public class ProductsController : Controller
+    {
+        private readonly GenericDataContext _context;
 
-      public ProductsController(GenericDataContext context)
-      {
-         _context = context;
-      }
+        public ProductsController(GenericDataContext context)
+        {
+            _context = context;
+        }
 
-      [HttpGet]
-      public IEnumerable<Product> Get()
-      {
-         return _context.Products.ToList();
-      }
+        [HttpGet]
+        public IEnumerable<Product> Get()
+        {
+            return _context.Products.ToList();
+        }
 
-      [HttpPost]
-      public IActionResult Post([FromBody] Product product)
-      {
-         if(!ModelState.IsValid)
-         {
-            return BadRequest(ModelState);
-         }
+        [HttpPost]
+        public IActionResult Post([FromBody] Product product)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
 
-         var existingProduct = _context.Products.
-            Where(b => (b.name == product.name) || (b.skuId == product.skuId)).
-            FirstOrDefault();
-         
-         if(existingProduct != null) {
-            ModelState.AddModelError("name", "Product name or skuId is already taken");
-            return BadRequest(ModelState);
-         }
+            var existingProduct = _context.Products.
+               Where(b => (b.name == product.name) || (b.skuId == product.skuId)).
+               FirstOrDefault();
 
-         _context.Products.Add(product);
-         _context.SaveChanges();
+            if (existingProduct != null)
+            {
+                ModelState.AddModelError("name", "Product name or skuId is already taken");
+                return BadRequest(ModelState);
+            }
 
-         return Ok(product);
-      }
+            _context.Products.Add(product);
+            _context.SaveChanges();
 
-      [HttpGet("export")]
-      public void Export()
-      {
-         XmlRootAttribute root = new XmlRootAttribute("Entities");
-         XmlSerializer serializer = new XmlSerializer(typeof(Product[]), root);
+            return Ok(product);
+        }
 
-         Response.ContentType = "application/xml";
-         serializer.Serialize(HttpContext.Response.Body, _context.Products.ToArray());
-      }
+        [HttpGet("export")]
+        public void Export()
+        {
+            XmlRootAttribute root = new XmlRootAttribute("Entities");
+            XmlSerializer serializer = new XmlSerializer(typeof(Product[]), root);
 
-      [HttpGet("search")]
-      public IActionResult Search(string keyword)
-      {
-         if (String.IsNullOrEmpty(keyword)) {
-            return Ok("Cannot search without a keyword");
-         }
+            Response.ContentType = "application/xml";
+            serializer.Serialize(HttpContext.Response.Body, _context.Products.ToArray());
+        }
 
-         var query = $"SELECT * From Products WHERE name LIKE '%{keyword}%' OR description LIKE '%{keyword}%'";
-         var products = _context.Products
-            .FromSql(query)
+        [HttpGet("search")]
+        public IActionResult Search(string keyword)
+        {
+            if (String.IsNullOrEmpty(keyword))
+                return Ok("Cannot search without a keyword");
+            if (!IsValidInput(keyword))
+                return Ok(new List<Product>(0));
+
+            var query = $"SELECT * From Products WHERE name LIKE @p0 OR description LIKE @p1";
+            var products = _context.Products
+               .FromSql(query, $"%{keyword}%", $"%{keyword}%")
             .ToList();
 
-         return Ok(products);
-      }
+            return Ok(products);
+        }
 
-      [HttpPost("import")]
-      public IActionResult Import()
-      {
-         XmlReader reader = XmlReader.Create(HttpContext.Request.Body);
-         XmlRootAttribute root = new XmlRootAttribute("Entities");
-         XmlSerializer serializer = new XmlSerializer(typeof(Product[]), root);
+        [HttpPost("import")]
+        public IActionResult Import()
+        {
+            XmlReader reader = XmlReader.Create(HttpContext.Request.Body);
+            XmlRootAttribute root = new XmlRootAttribute("Entities");
+            XmlSerializer serializer = new XmlSerializer(typeof(Product[]), root);
 
-         var entities = (Product[]) serializer.Deserialize(reader);
-         reader.Close();
+            var entities = (Product[])serializer.Deserialize(reader);
+            reader.Close();
 
-         return Ok(entities);
-      }
-   }
+            return Ok(entities);
+        }
+
+        private bool IsValidInput(string input)
+        {
+            // only allow letters and numbers 
+            // exclude special characters
+            const string pattern = "^[a-zA-Z0-9]+$";
+
+            // Check if the input string matches the pattern
+            return System.Text.RegularExpressions.Regex.IsMatch(input, pattern);
+        }
+    }
 }
